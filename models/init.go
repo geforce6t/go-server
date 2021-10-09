@@ -31,5 +31,10 @@ func InitDB() *gorm.DB {
 
 	log.Println("Connected to the database", GetEnvValue("dbname"))
 
+	err = db.AutoMigrate(&User{})
+	if err != nil {
+		log.Fatalf("Error while migration: %v", err)
+	}
+
 	return db
 }
