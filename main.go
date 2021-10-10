@@ -10,11 +10,11 @@ import (
 func main() {
 	r := gin.Default()
 
-	// initialise routes
-	routes.InitRoutes(r)
-
 	// initialise database
-	models.InitDB()
+	db := models.InitDB()
+
+	// initialise routes
+	routes.InitRoutes(r, db)
 
 	r.Use(cors.Default())
 	r.Run(":6000")
