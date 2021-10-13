@@ -127,6 +127,28 @@ func LoginUser(c *gin.Context, db *gorm.DB) {
 	})
 }
 
+// logout user
+func Logout(c *gin.Context) {
+	au, err := utils.ExtractTokenMetadata(c.Request)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "User not authorised :(",
+		})
+		return
+	}
+	deleted, delErr := utils.DeleteAuth(au.AccessUuid)
+	if delErr != nil || deleted == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "User not authorised :(",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Successfully logged out",
+	})
+}
+
+// token regeneration
 func Refresh(c *gin.Context, db *gorm.DB) {
 
 	res := map[string]string{}

@@ -17,9 +17,9 @@ func main() {
 	// initialise redis
 	utils.InitialiseRedis()
 
+	r.Use(cors.Default())
 	// initialise routes
 	routes.InitRoutes(r, db)
 
-	r.Use(cors.Default())
 	r.Run(":6000")
 }
