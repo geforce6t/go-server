@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/geforce6t/go-server/models"
@@ -95,16 +96,29 @@ func LoginUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	validToken, err := utils.GenerateJwt(dbResponse.ID, dbResponse.Name)
+	td, err := utils.CreateToken(dbResponse.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "internal server eroor",
+			"message": "internal server error",
 		})
 		return
 	}
 
+	if saveErr := utils.CreateAuth(dbResponse.ID, td); saveErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "internal server error",
+		})
+		log.Fatalf("Redis error dude: %v", saveErr.Error())
+		return
+	}
+
+	tokens := map[string]string{
+		"access_token":  td.AccessToken,
+		"refresh_token": td.RefreshToken,
+	}
+
 	c.JSON(http.StatusAccepted, gin.H{
 		"message": "Success!",
-		"data":    validToken,
+		"data":    tokens,
 	})
 }
