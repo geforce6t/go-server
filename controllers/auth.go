@@ -1,9 +1,13 @@
 package controllers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/geforce6t/go-server/models"
 	"github.com/geforce6t/go-server/utils"
 	"github.com/gin-gonic/gin"
@@ -96,7 +100,7 @@ func LoginUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	td, err := utils.CreateToken(dbResponse.ID)
+	td, err := utils.CreateToken(uint64(dbResponse.ID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "internal server error",
@@ -104,7 +108,100 @@ func LoginUser(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	if saveErr := utils.CreateAuth(dbResponse.ID, td); saveErr != nil {
+	if saveErr := utils.CreateAuth(uint64(dbResponse.ID), td); saveErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "internal server error",
+		})
+		log.Fatalf("Redis error dude: %v", saveErr.Error())
+		return
+	}
+
+	tokens := map[string]string{
+		"access_token":  td.AccessToken,
+		"refresh_token": td.RefreshToken,
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"message": "Success!",
+		"data":    tokens,
+	})
+}
+
+func Refresh(c *gin.Context, db *gorm.DB) {
+
+	res := map[string]string{}
+	var userId uint64
+
+	if err := c.ShouldBindJSON(&res); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"message": "Invalid response!",
+		})
+		return
+	}
+
+	refreshToken := res["refresh_token"]
+
+	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("secret")), nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "internal server error",
+		})
+		log.Fatalf("Invalid token: %v", err.Error())
+	}
+
+	refreshData := &utils.RefreshDetails{}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if ok && token.Valid {
+		refreshUuid, ok := claims["refresh_uuid"].(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "internal server error",
+			})
+			return
+		}
+		id, err := strconv.ParseUint(fmt.Sprintf("%.f", claims["user_id"]), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "internal server error",
+			})
+			log.Fatalf("Invalid token: %v", err.Error())
+		}
+
+		refreshData.RefreshUuid = refreshUuid
+		userId = id
+	}
+
+	if _, err = utils.Client.Get(refreshData.RefreshUuid).Result(); err == nil {
+		_, err = utils.Client.Del(refreshData.RefreshUuid).Result()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Internal server Error",
+			})
+			log.Fatalf("error %v", err.Error())
+		}
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Internal server Error",
+		})
+		log.Fatalf("error %v", err.Error())
+	}
+
+	td, err := utils.CreateToken(userId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "internal server error",
+		})
+		log.Fatalf("error %v", err.Error())
+		return
+	}
+
+	if saveErr := utils.CreateAuth(userId, td); saveErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "internal server error",
 		})

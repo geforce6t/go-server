@@ -7,7 +7,7 @@ import (
 	"github.com/go-redis/redis"
 )
 
-var client *redis.Client
+var Client *redis.Client
 
 type TokenDetails struct {
 	AccessToken  string
@@ -24,10 +24,10 @@ func InitialiseRedis() {
 	if len(dsn) == 0 {
 		dsn = "localhost:6380"
 	}
-	client = redis.NewClient(&redis.Options{
+	Client = redis.NewClient(&redis.Options{
 		Addr: dsn, //redis port
 	})
-	_, err := client.Ping().Result()
+	_, err := Client.Ping().Result()
 	if err != nil {
 		log.Fatalf("Error connecting redis %v", err.Error())
 	}
